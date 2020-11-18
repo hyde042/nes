@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/exp/shiny/driver"
 	"golang.org/x/exp/shiny/screen"
+	"golang.org/x/mobile/event/key"
 	"golang.org/x/mobile/event/lifecycle"
 	"golang.org/x/mobile/event/paint"
 	"golang.org/x/mobile/event/size"
@@ -37,12 +38,36 @@ func main() {
 		}
 		defer w.Release()
 
+		var buttons [8]bool
 	mainloop:
 		for {
 			switch e := w.NextEvent().(type) {
 			case lifecycle.Event:
 				if e.To == lifecycle.StageDead {
 					break mainloop
+				}
+			case key.Event:
+				var nextState bool
+				if e.Direction == key.DirPress {
+					nextState = true
+				}
+				switch e.Code {
+				case key.CodeX:
+					buttons[0] = nextState
+				case key.CodeZ:
+					buttons[1] = nextState
+				case key.CodeS:
+					buttons[2] = nextState
+				case key.CodeA:
+					buttons[3] = nextState
+				case key.CodeUpArrow:
+					buttons[4] = nextState
+				case key.CodeDownArrow:
+					buttons[5] = nextState
+				case key.CodeLeftArrow:
+					buttons[6] = nextState
+				case key.CodeRightArrow:
+					buttons[7] = nextState
 				}
 			case paint.Event:
 				if !e.External {
@@ -56,6 +81,7 @@ func main() {
 			case error:
 				log.Println(e)
 			}
+			c.SetButtons1(buttons)
 			c.StepFrame()
 			w.Send(paint.Event{})
 		}
