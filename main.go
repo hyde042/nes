@@ -1,51 +1,63 @@
 package main
 
 import (
-	"io/ioutil"
+	"image"
+	"image/draw"
 	"log"
-	"os"
-	"path"
-	"strings"
 
-	"github.com/fogleman/nes/ui"
+	"golang.org/x/exp/shiny/driver"
+	"golang.org/x/exp/shiny/screen"
+	"golang.org/x/mobile/event/lifecycle"
+	"golang.org/x/mobile/event/paint"
+	"golang.org/x/mobile/event/size"
+
+	"github.com/fogleman/nes/nes"
 )
 
 func main() {
-	log.SetFlags(0)
-	paths := getPaths()
-	if len(paths) == 0 {
-		log.Fatalln("no rom files specified or found")
-	}
-	ui.Run(paths)
-}
-
-func getPaths() []string {
-	var arg string
-	args := os.Args[1:]
-	if len(args) == 1 {
-		arg = args[0]
-	} else {
-		arg, _ = os.Getwd()
-	}
-	info, err := os.Stat(arg)
+	c, err := nes.NewConsole("roms/test.nes")
 	if err != nil {
-		return nil
+		log.Fatal(err)
 	}
-	if info.IsDir() {
-		infos, err := ioutil.ReadDir(arg)
+	driver.Main(func(s screen.Screen) {
+		cbufb := c.Buffer().Bounds()
+		buf, err := s.NewBuffer(image.Point{X: cbufb.Dx(), Y: cbufb.Dy()})
 		if err != nil {
-			return nil
+			log.Fatal(err)
 		}
-		var result []string
-		for _, info := range infos {
-			name := info.Name()
-			if !strings.HasSuffix(name, ".nes") {
-				continue
+		defer buf.Release()
+
+		w, err := s.NewWindow(&screen.NewWindowOptions{
+			Title:  "nes",
+			Width:  buf.Size().X,
+			Height: buf.Size().Y,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer w.Release()
+
+	mainloop:
+		for {
+			switch e := w.NextEvent().(type) {
+			case lifecycle.Event:
+				if e.To == lifecycle.StageDead {
+					break mainloop
+				}
+			case paint.Event:
+				if !e.External {
+					draw.Draw(buf.RGBA(), buf.Bounds(), c.Buffer(), image.ZP, draw.Over)
+					w.Upload(image.ZP, buf, buf.Bounds())
+					w.Publish()
+				}
+			case size.Event:
+				// TODO
+
+			case error:
+				log.Println(e)
 			}
-			result = append(result, path.Join(arg, name))
+			c.StepFrame()
+			w.Send(paint.Event{})
 		}
-		return result
-	} else {
-		return []string{arg}
-	}
+	})
 }
